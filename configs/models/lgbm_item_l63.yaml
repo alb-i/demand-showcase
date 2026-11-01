@@ -1,0 +1,11 @@
+# E4 grid: lgbm_item with 63 leaves, min 100 rows per leaf
+name: lgbm
+experiment: E4
+target: item
+bulk: {method: ma, window: 52}
+rounds: 400
+scale_weeks: 13
+oos_weeks: 13
+min_pool: 100
+tag: "-l63"
+params: {tweedie_variance_power: 1.5, num_leaves: 63, learning_rate: 0.05, min_data_in_leaf: 100}

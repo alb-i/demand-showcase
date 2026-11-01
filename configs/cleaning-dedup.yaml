@@ -1,0 +1,4 @@
+# Variant of cleaning.yaml: exact duplicate lines dropped (one line kept per group).
+base: cleaning.yaml
+variant: dedup
+duplicates: drop

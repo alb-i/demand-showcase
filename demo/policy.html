@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Policy · demand demo</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+  <header><span class="brand">Demand forecasting demo</span><nav id="nav"></nav>
+    <span class="note">static demo, precomputed data</span></header>
+  <main>
+    <div class="toolbar"><h1>Policy what-if</h1><span class="muted" id="sub"></span></div>
+    <div id="selftest"></div>
+    <form class="whatif" id="whatif" onsubmit="return false">
+      <label>Lead time L <select name="L" id="L"></select> weeks</label>
+      <label>P-quantile τ <input type="range" id="tau"><output></output></label>
+      <label>P-naive buffer <input type="range" id="buffer"><output></output></label>
+      <label>P-normal α <input type="range" id="alpha"><output></output></label>
+      <label>Margin <input type="range" id="margin" min="0.1" max="0.7" step="0.05"><output></output></label>
+      <label>Holding / year <input type="range" id="holding" min="0.05" max="0.5" step="0.05"><output></output></label>
+      <label>Write-down of seasonal leftovers <input type="range" id="writedown" min="0" max="1" step="0.1"><output></output></label>
+      <label>Product <select id="product"></select></label>
+    </form>
+    <div class="scroll"><table class="runs" id="points"></table></div>
+    <div class="grid2">
+      <div><h2>Trade-off: average stock value vs. fill rate</h2><div class="chart-box"><canvas id="frontier"></canvas></div></div>
+      <div><h2>Total cost by policy (£)</h2><div class="chart-box"><canvas id="cost"></canvas></div></div>
+    </div>
+    <h2 id="product-title"></h2>
+    <div class="chart-box tall"><canvas id="productChart"></canvas></div>
+    <p class="muted">Lost sales; review every week; start with stock S; prices = median price before the
+      first week. Costs: unit cost (1 − margin) × price, holding cost per week = rate × unit cost / 52,
+      lost margin = margin × price. The table and the two upper charts cover all <span id="n-focus"></span>
+      focus products; the stock chart shows one product (the demo has <span id="n-products"></span>).</p>
+  </main>
+  <script src="chart.umd.min.js"></script>
+  <script src="demo.js"></script>
+  <script src="data/meta.js"></script>
+  <script src="data/aggregates.js"></script>
+  <script src="data/sim.js"></script>
+  <script>
+    nav('Policy');
+    const M = DEMO.meta, G = M.grids;
+    const $ = id => document.getElementById(id);
+    $('sub').textContent = `${M.weeks.length} test weeks (${M.weeks[0]} to ${M.weeks[M.weeks.length - 1]}), `
+      + `P-quantile from the sample paths of ${M.model}`;
+    $('n-focus').textContent = M.n_focus; $('n-products').textContent = M.products.length;
+    $('L').innerHTML = M.lead_times.map(l => `<option>${l}</option>`).join('');
+    const op = M.operating_point['1'] || { naive: 1, normal: 0.9, quantile: 0.925 };
+    const value = { quantile: gridSlider($('tau'), G.quantile, op.quantile),
+                    naive: gridSlider($('buffer'), G.naive, op.naive),
+                    normal: gridSlider($('alpha'), G.normal, op.normal) };
+    $('margin').value = M.costs.margin; $('holding').value = M.costs.holding; $('writedown').value = M.costs.writedown;
+    for (const id of ['margin', 'holding', 'writedown']) {
+      const r = $(id), out = r.nextElementSibling, show = () => out.textContent = Math.round(r.value * 100) + ' %';
+      r.addEventListener('input', show); show();
+    }
+    const code = M.products.some(p => p.id === param('p')) ? param('p') : M.products[0].id;
+    $('product').innerHTML = M.products.map(p => `<option value="${p.id}" ${p.id === code ? 'selected' : ''}>${p.id} ${p.description}</option>`).join('');
+
+    const text = cssVar('--muted'), grid = cssVar('--grid'), fg = cssVar('--fg');
+    const axes = (x, y) => ({ x: { title: { display: true, text: x, color: text }, grid: { color: grid }, ticks: { color: text } },
+                              y: { title: { display: true, text: y, color: text }, grid: { color: grid }, ticks: { color: text } } });
+    const frontier = new Chart($('frontier'), {
+      type: 'scatter', data: { datasets: [] },
+      options: { animation: false, maintainAspectRatio: false, showLine: true,
+        plugins: { legend: { labels: { color: text, boxWidth: 12, filter: i => !!i.text } },
+                   tooltip: { callbacks: { label: c => `${c.dataset.label || NAMES[c.dataset.policy]} ${c.raw.v}: fill ${pct(c.raw.x)}, ${gbp(c.raw.y * 1000)}` } } },
+        scales: axes('fill rate', 'average stock value (£ thousand)') } });
+    const cost = new Chart($('cost'), {
+      type: 'bar', data: { labels: [], datasets: [] },
+      options: { animation: false, maintainAspectRatio: false, plugins: { legend: { labels: { color: text, boxWidth: 12 } } },
+        scales: { x: { stacked: true, ticks: { color: text }, grid: { display: false } },
+                  y: { stacked: true, ticks: { color: text }, grid: { color: grid } } } } });
+    const product = new Chart($('productChart'), {
+      type: 'line', data: { labels: [], datasets: [] },
+      options: { animation: false, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { labels: { color: text, boxWidth: 12 } } },
+        scales: { ...axes('week', 'units'), x: { grid: { color: grid }, ticks: { color: text, maxTicksLimit: 8 } } } } });
+
+    async function update() {
+      const lead = +$('L').value, A = DEMO.aggregates[String(lead)];
+      const margin = +$('margin').value, holding = +$('holding').value, writedown = +$('writedown').value;
+      const price = agg => reprice(agg, margin, holding, writedown, M.costs.weeks_per_year);
+      const points = {};
+      for (const p of POLICIES) points[p] = price(A[p][G[p].indexOf(value[p]())]);
+      let html = '<thead><tr>' + th('policy', 'policy', '') + th('fill rate', 'fill_rate') + th('cycle service', 'cycle_service')
+        + th('stock-out weeks', 'stockout_weeks') + th('avg stock value', 'avg_stock_value') + th('holding', 'holding')
+        + th('lost margin', 'lost_margin') + th('write-down', 'write_down') + th('total cost', 'total_cost') + '</tr></thead><tbody>';
+      for (const p of POLICIES) {
+        const t = points[p];
+        html += `<tr><td><span class="swatch" style="background:${COLORS[p]}"></span> ${NAMES[p]} ${PARAM[p]} ${value[p]()}</td>`
+          + `<td class="num">${pct(t.fill_rate)}</td><td class="num">${pct(t.cycle_service)}</td><td class="num">${t.stockout_weeks}</td>`
+          + `<td class="num">${gbp(t.avg_stock_value)}</td><td class="num">${gbp(t.holding_cost)}</td><td class="num">${gbp(t.lost_margin)}</td>`
+          + `<td class="num">${gbp(t.write_down)}</td><td class="num"><b>${gbp(t.total_cost)}</b></td></tr>`;
+      }
+      $('points').innerHTML = html + '</tbody>';
+      frontier.data.datasets = [];
+      for (const p of POLICIES) {
+        frontier.data.datasets.push({ label: NAMES[p], policy: p, borderColor: COLORS[p], backgroundColor: COLORS[p], pointRadius: 2, borderWidth: 1.5,
+          data: A[p].map((agg, i) => { const t = price(agg); return { x: t.fill_rate, y: t.avg_stock_value / 1000, v: `${PARAM[p]} ${G[p][i]}` }; }) });
+        const t = points[p];
+        frontier.data.datasets.push({ label: '', policy: p, borderColor: fg, backgroundColor: COLORS[p], pointRadius: 7, pointBorderWidth: 2, showLine: false,
+          data: [{ x: t.fill_rate, y: t.avg_stock_value / 1000, v: `${PARAM[p]} ${value[p]()} (selected)` }] });
+      }
+      frontier.update();
+      cost.data.labels = POLICIES.map(p => NAMES[p]);
+      cost.data.datasets = [['holding_cost', 'holding', '#2a78d6'], ['lost_margin', 'lost margin', '#eb6834'], ['write_down', 'write-down', '#eda100']]
+        .map(([k, label, c]) => ({ label, backgroundColor: c, data: POLICIES.map(p => points[p][k]) }));
+      cost.update();
+
+      await load(`data/levels-L${lead}.js`);
+      const c = $('product').value, info = M.products.find(p => p.id === c), d = DEMO.sim[c].demand;
+      $('product-title').textContent = `${c} ${info.description}: stock at the end of the week`;
+      product.data.labels = M.weeks;
+      const sims = {}, lv = {};
+      for (const p of POLICIES) { lv[p] = levels(c, p, value[p](), lead); sims[p] = simulate(d, lv[p], lead); }
+      product.data.datasets = [{ label: 'demand', data: d, borderColor: fg, borderWidth: 1.2, pointRadius: 1.5 }]
+        .concat(POLICIES.map(p => ({ label: `${NAMES[p]} stock`, data: sims[p].end, borderColor: COLORS[p], borderWidth: 1.5, pointRadius: 0, stepped: 'after' })))
+        .concat(POLICIES.map(p => ({ label: `${NAMES[p]} S`, data: lv[p].map(v => (Number.isNaN(v) ? null : v)), borderColor: COLORS[p], borderDash: [4, 3], borderWidth: 1, pointRadius: 0, hidden: true })));
+      product.update();
+    }
+    let timer = null;
+    $('whatif').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => update().catch(fail), 60); });
+    update().catch(fail);
+
+    // policy.html?selftest: the JavaScript against the Python simulator (scripts/export_static.py)
+    if (new URLSearchParams(location.search).has('selftest')) {
+      load('data/selftest.js').then(async () => {
+        const T = DEMO.selftest, rows = [];
+        let ok = 0;
+        for (const cs of T.cases) {
+          await load(`data/levels-L${cs.L}.js`);
+          const s = simulate(DEMO.sim[cs.product].demand, levels(cs.product, cs.policy, cs.value, cs.L), cs.L);
+          const err = Math.max(...['end', 'order'].flatMap(k => s[k].map((v, i) => Math.abs(v - cs[k][i]))));
+          const pass = err < 0.05;  // levels are stored to 2 decimals
+          ok += pass;
+          rows.push(`<tr><td>${cs.product} L${cs.L} ${NAMES[cs.policy]} ${cs.value}</td><td class="num">${err.toExponential(1)}</td><td class="${pass ? 'better' : 'worse'}">${pass ? 'pass' : 'FAIL'}</td></tr>`);
+        }
+        const R = T.reprice, got = reprice(DEMO.aggregates[String(R.L)][R.policy][R.index], R.margin, R.holding, R.writedown);
+        const rel = Math.max(...Object.keys(R.want).map(k => Math.abs(got[k] - R.want[k]) / Math.max(1, Math.abs(R.want[k]))));
+        const pass = rel < 1e-9; ok += pass;
+        rows.push(`<tr><td>re-pricing (margin ${R.margin}, holding ${R.holding}, write-down ${R.writedown})</td><td class="num">${rel.toExponential(1)}</td><td class="${pass ? 'better' : 'worse'}">${pass ? 'pass' : 'FAIL'}</td></tr>`);
+        $('selftest').innerHTML = `<h2>Self-test: ${ok} of ${rows.length} pass</h2><table class="runs"><thead><tr><th>case</th><th class="num">max error</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table><p></p>`;
+      }).catch(fail);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+# E2 intermittent-demand method; intervals from pooled scaled residuals
+name: intermittent
+experiment: E2
+method: croston
+alpha: 0.2
+residual_weeks: 52
+min_pool: 100

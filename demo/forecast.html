@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Forecast · demand demo</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+  <header><span class="brand">Demand forecasting demo</span><nav id="nav"></nav>
+    <span class="note">static demo, precomputed data</span></header>
+  <main>
+    <div class="toolbar"><h1 id="title">Forecast</h1></div>
+    <form class="filters" id="pick" onsubmit="return false">
+      <label>Product <select name="p" id="product"></select></label>
+      <label>Model <select name="m" id="model"></select></label>
+      <span class="muted" id="seg"></span>
+    </form>
+    <div class="filters">
+      <label for="origin">Forecast origin</label>
+      <input type="range" id="origin" min="0" max="0" value="0">
+      <b id="origin-label"></b> <span class="muted" id="origin-kind"></span>
+    </div>
+    <div class="chart-box tall"><canvas id="fan"></canvas></div>
+    <p class="muted">Black: weekly demand. Blue: median forecast made at the origin (dotted line) for the
+      next 8 weeks, with the 60, 80 and 95 % intervals; dashed: mean. Drag the slider to replay 2011.</p>
+    <div class="scroll"><table class="runs" id="fc-table"></table></div>
+  </main>
+  <script src="chart.umd.min.js"></script>
+  <script src="demo.js"></script>
+  <script src="data/meta.js"></script>
+  <script>
+    nav('Forecast');
+    const M = DEMO.meta;
+    const MODEL_LABEL = { 'lgbm-total-q-p1.8': 'LightGBM (selected model)', snaive: 'seasonal naive (last year)' };
+    const productSel = document.getElementById('product'), modelSel = document.getElementById('model');
+    const code = M.products.some(p => p.id === param('p')) ? param('p') : M.products[0].id;
+    productSel.innerHTML = M.products.map(p => `<option value="${p.id}" ${p.id === code ? 'selected' : ''}>${p.id} ${p.description}</option>`).join('');
+    const model = M.models.includes(param('m')) ? param('m') : M.models[0];
+    modelSel.innerHTML = M.models.map(m => `<option value="${m}" ${m === model ? 'selected' : ''}>${MODEL_LABEL[m] || m}</option>`).join('');
+    const go = () => { location.search = `?p=${encodeURIComponent(productSel.value)}&m=${encodeURIComponent(modelSel.value)}`; };
+    productSel.addEventListener('change', go); modelSel.addEventListener('change', go);
+    const info = M.products.find(p => p.id === code);
+    document.getElementById('title').innerHTML = `${code} <span class="muted">${info.description}</span>`;
+    document.getElementById('seg').innerHTML = `segment ${info.segment} · ${info.category} · <a href="policy.html?p=${encodeURIComponent(code)}">policy what-if →</a>`;
+
+    load(`data/fc/${code}.js`).then(() => {
+      const P = DEMO[`fc-${code}`], F = P.forecasts[model];
+      const origins = Object.keys(F).sort();
+      const text = cssVar('--muted'), grid = cssVar('--grid'), accent = cssVar('--accent'), fg = cssVar('--fg');
+      const first = Math.max(0, P.weeks.indexOf(origins[0]) - 26);
+      const labels = P.weeks.slice(first);
+      for (let k = 1; k <= 7; k++) {
+        const d = new Date(P.weeks[P.weeks.length - 1]);  // ISO date: UTC
+        d.setUTCDate(d.getUTCDate() + 7 * k);
+        labels.push(d.toISOString().slice(0, 10));
+      }
+      const actual = labels.map((w, i) => P.units[first + i] ?? null);
+      const blank = () => labels.map(() => null);
+      const band = (alpha) => `color-mix(in srgb, ${accent} ${alpha}%, transparent)`;
+      const datasets = [];
+      M.fan.forEach(([lo, hi], i) => {
+        datasets.push({ key: `q${lo}`, data: blank(), borderWidth: 0, pointRadius: 0, fill: false });
+        datasets.push({ key: `q${hi}`, data: blank(), borderWidth: 0, pointRadius: 0, fill: '-1',
+                        backgroundColor: band([12, 22, 32][i]), label: `${Math.round((hi - lo) * 100)} %` });
+      });
+      datasets.push({ key: 'q0.5', label: 'median', data: blank(), borderColor: accent, borderWidth: 2, pointRadius: 2 });
+      datasets.push({ key: 'mean', label: 'mean', data: blank(), borderColor: accent, borderDash: [4, 3], borderWidth: 1, pointRadius: 0 });
+      datasets.push({ key: 'actual', label: 'demand', data: actual, borderColor: fg, borderWidth: 1.2, pointRadius: 1.5, spanGaps: false });
+      let originIdx = 0;
+      const originLine = { id: 'originLine', afterDatasetsDraw(chart) {
+        const x = chart.scales.x.getPixelForValue(originIdx - 0.5), { top, bottom } = chart.chartArea;
+        const ctx = chart.ctx; ctx.save(); ctx.strokeStyle = text; ctx.setLineDash([2, 3]);
+        ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke(); ctx.restore(); } };
+      const chart = new Chart(document.getElementById('fan'), {
+        type: 'line', data: { labels, datasets },
+        options: { animation: false, maintainAspectRatio: false, spanGaps: true,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { labels: { color: text, boxWidth: 12, filter: i => !!i.text } } },
+          scales: { x: { grid: { color: grid }, ticks: { color: text, maxTicksLimit: 8 } },
+                    y: { beginAtZero: true, grid: { color: grid }, ticks: { color: text },
+                         title: { display: true, text: 'units per week', color: text } } } },
+        plugins: [originLine],
+      });
+      function show(k) {
+        const origin = origins[k], f = F[origin];
+        originIdx = labels.indexOf(origin);
+        document.getElementById('origin-label').textContent = origin;
+        document.getElementById('origin-kind').textContent = origin >= M.test_from ? 'test origin' : 'tuning origin';
+        chart.data.datasets.forEach(d => {
+          if (d.key === 'actual') return;
+          const arr = blank();
+          (f[d.key] || []).forEach((v, h) => { if (originIdx + h < arr.length) arr[originIdx + h] = v; });
+          d.data = arr;
+        });
+        chart.update();
+        let html = '<thead><tr>' + th('week', 'week', '') + th('demand', 'demand') + th('mean', 'mean')
+          + th('q0.1', 'q0.1') + th('median', 'median') + th('q0.9', 'q0.9') + th('q0.975', 'q0.975') + '</tr></thead><tbody>';
+        f['q0.5'].forEach((_, h) => {
+          const i = originIdx + h;
+          html += `<tr><td>${labels[i] ?? ''}</td><td class="num">${fmt1(actual[i])}</td><td class="num">${fmt1(f.mean[h])}</td>`
+            + `<td class="num">${fmt1(f['q0.1'][h])}</td><td class="num">${fmt1(f['q0.5'][h])}</td>`
+            + `<td class="num">${fmt1(f['q0.9'][h])}</td><td class="num">${fmt1(f['q0.975'][h])}</td></tr>`;
+        });
+        document.getElementById('fc-table').innerHTML = html + '</tbody>';
+      }
+      const slider = document.getElementById('origin');
+      slider.max = origins.length - 1; slider.value = origins.length - 1;
+      slider.addEventListener('input', () => show(+slider.value));
+      show(+slider.value);
+    }).catch(fail);
+  </script>
+</body>
+</html>

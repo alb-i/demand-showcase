@@ -1,0 +1,66 @@
+decision: 'per lead time and reference P-naive buffer (0 and 1.0), P-quantile and P-normal at
+  the smallest grid value whose tuning fill rate reaches the reference''s'
+lead_time:
+  1:
+    source_run: P5-sim-L1-focus-r1
+    points:
+    - naive:
+        buffer: 0.0
+        fill_rate: 0.6896
+      quantile:
+        tau: 0.7
+        fill_rate: 0.7324
+      normal:
+        alpha: 0.5
+        fill_rate: 0.6896
+    - naive:
+        buffer: 1.0
+        fill_rate: 0.8922
+      quantile:
+        tau: 0.925
+        fill_rate: 0.9067
+      normal:
+        alpha: 0.9
+        fill_rate: 0.9142
+  2:
+    source_run: P5-sim-L2-focus-r1
+    points:
+    - naive:
+        buffer: 0.0
+        fill_rate: 0.7054
+      quantile:
+        tau: 0.7
+        fill_rate: 0.7535
+      normal:
+        alpha: 0.5
+        fill_rate: 0.7054
+    - naive:
+        buffer: 1.0
+        fill_rate: 0.9061
+      quantile:
+        tau: 0.925
+        fill_rate: 0.9115
+      normal:
+        alpha: 0.9
+        fill_rate: 0.9157
+  4:
+    source_run: P5-sim-L4-focus-r1
+    points:
+    - naive:
+        buffer: 0.0
+        fill_rate: 0.7631
+      quantile:
+        tau: 0.7
+        fill_rate: 0.8066
+      normal:
+        alpha: 0.5
+        fill_rate: 0.7631
+    - naive:
+        buffer: 1.0
+        fill_rate: 0.9295
+      quantile:
+        tau: 0.95
+        fill_rate: 0.9389
+      normal:
+        alpha: 0.925
+        fill_rate: 0.9364

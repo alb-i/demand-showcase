@@ -1,0 +1,9 @@
+# E3c: item demand top-down by category (category item demand by MA(13), split by the
+# products' item shares of the last 52 weeks), bulk demand per product by MA(52)
+name: topdown
+experiment: E3c
+item: {method: ma, window: 13}
+bulk: {method: ma, window: 52}
+share_weeks: 52
+residual_weeks: 52
+min_pool: 100

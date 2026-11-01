@@ -1,0 +1,7 @@
+# E2 extension: item demand and bulk demand forecast separately, forecast = sum
+name: split
+experiment: E2b
+item: {method: tsb, alpha: 0.2}
+bulk: {method: ma, window: 52}
+residual_weeks: 52
+min_pool: 100

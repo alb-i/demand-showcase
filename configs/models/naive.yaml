@@ -1,0 +1,6 @@
+# E1 baseline; intervals from pooled scaled residuals
+name: baseline
+experiment: E1
+method: naive
+residual_weeks: 52
+min_pool: 100

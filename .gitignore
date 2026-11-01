@@ -1,0 +1,19 @@
+.env
+runs/
+data/
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+reports/*.aux
+reports/*.log
+reports/*.out
+reports/*.fls
+reports/*.fdb_latexmk
+reports/*.pdf
+!reports/report.pdf
+!reports/one-pager.pdf
+
+# static demo: built by scripts/export_static.py

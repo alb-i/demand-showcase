@@ -1,0 +1,9 @@
+# E3c: split ma4 + bulk ma52 with the intervals pooled per product category instead of
+# per segment (ABC x Syntetos-Boylan)
+name: split
+experiment: E3c
+item: {method: ma, window: 4}
+bulk: {method: ma, window: 52}
+residual_weeks: 52
+min_pool: 100
+pool_by: category

@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="color-scheme" content="light dark">
+<title>Bulk review</title>
+<style>
+:root {
+  --bg: #f4f4f1; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #deded8;
+  --keep: #1f6f43; --keep-bg: #e3f1e8; --excl: #a33a2a; --excl-bg: #f7e4df;
+  --accent: #2d5b8c; --chip: #ecece7;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615; --card: #22221f; --ink: #ececea; --muted: #a2a29b; --line: #393935;
+    --keep: #6cc290; --keep-bg: #1d3427; --excl: #ec8f7d; --excl-bg: #3d2420;
+    --accent: #8db6e2; --chip: #2f2f2b;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 17px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  padding: 0 max(16px, env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom))
+           max(16px, env(safe-area-inset-left));
+}
+header {
+  position: sticky; top: 0; z-index: 5; background: var(--bg);
+  padding: calc(12px + env(safe-area-inset-top)) 0 12px; border-bottom: 1px solid var(--line);
+}
+h1 { font-size: 22px; margin: 0 0 8px; }
+.progress { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; color: var(--muted); }
+.bar { flex: 1 1 200px; height: 8px; background: var(--chip); border-radius: 4px; overflow: hidden; display: flex; }
+.bar span { display: block; height: 100%; }
+.bar .k { background: var(--keep); } .bar .x { background: var(--excl); }
+.filters { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.seg button, select {
+  min-height: 44px; padding: 0 16px; border: 0; background: var(--card); color: var(--ink);
+  font: inherit; font-size: 16px;
+}
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--card); }
+select { border: 1px solid var(--line); border-radius: 12px; }
+.bulk { display: none; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; color: var(--muted); }
+.bulk.on { display: flex; }
+main { display: grid; gap: 14px; margin-top: 14px; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px; border-left: 6px solid var(--line);
+}
+.card.keep { border-left-color: var(--keep); }
+.card.exclude { border-left-color: var(--excl); }
+.top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.desc { font-weight: 600; }
+.row { color: var(--muted); font-size: 14px; white-space: nowrap; }
+.big { display: flex; gap: 18px; align-items: baseline; flex-wrap: wrap; }
+.big b { font-size: 26px; font-variant-numeric: tabular-nums; }
+.big small { color: var(--muted); }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; font-size: 15px; }
+dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; }
+.warn { color: var(--excl); font-weight: 600; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.actions button {
+  min-height: 52px; border-radius: 12px; font: inherit; font-weight: 600;
+  border: 2px solid var(--line); background: var(--card); color: var(--ink);
+}
+.actions .kb[aria-pressed="true"] { background: var(--keep-bg); border-color: var(--keep); color: var(--keep); }
+.actions .xb[aria-pressed="true"] { background: var(--excl-bg); border-color: var(--excl); color: var(--excl); }
+input.note {
+  width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 10px;
+  padding: 0 12px; font: inherit; font-size: 16px; background: var(--bg); color: var(--ink);
+}
+.cust { color: var(--accent); background: none; border: 0; font: inherit; padding: 0; text-decoration: underline; }
+.toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 12px; opacity: 0;
+  transition: opacity .2s; pointer-events: none;
+}
+.toast.on { opacity: .95; }
+.empty { color: var(--muted); padding: 40px 0; text-align: center; grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bulk review <span class="row" id="file">reports/bulk_review.csv</span></h1>
+  <div class="progress">
+    <div class="bar"><span class="k" id="bk"></span><span class="x" id="bx"></span></div>
+    <span id="counts"></span>
+  </div>
+  <div class="filters">
+    <div class="seg" id="status">
+      <button data-v="open" aria-pressed="true">Open</button>
+      <button data-v="all">All</button>
+      <button data-v="keep">Keep</button>
+      <button data-v="exclude">Exclude</button>
+    </div>
+    <select id="customer" aria-label="Customer"></select>
+  </div>
+  <div class="bulk" id="bulk">
+    <span id="bulktext"></span>
+    <div class="seg">
+      <button id="allkeep">Keep all open</button>
+      <button id="allexcl">Exclude all open</button>
+    </div>
+  </div>
+</header>
+<main id="cards"></main>
+<div class="toast" id="toast"></div>
+<script>
+let rows = [];
+let status = "open", customer = "";
+const $ = (id) => document.getElementById(id);
+const num = (x, d = 0) => Number(x).toLocaleString("en-GB", { maximumFractionDigits: d, minimumFractionDigits: d });
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 1600);
+}
+
+async function load() {
+  const r = await fetch("api/rows");
+  rows = await r.json();
+  const custs = [...new Set(rows.map((r) => r.customer_id))];
+  const n = (c) => rows.filter((r) => r.customer_id === c).length;
+  custs.sort((a, b) => n(b) - n(a));
+  $("customer").innerHTML = `<option value="">All customers</option>` +
+    custs.map((c) => `<option value="${c}">Customer ${c || "?"} (${n(c)})</option>`).join("");
+  $("customer").value = customer;
+  render();
+}
+
+async function save(r, decision, note) {
+  const res = await fetch(`api/rows/${encodeURIComponent(r.invoice)}/${encodeURIComponent(r.stock_code)}`, {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ decision, note }),
+  });
+  if (!res.ok) { toast(`Not saved (${res.status})`); return false; }
+  r.decision = decision; r.note = note; return true;
+}
+
+function visible() {
+  return rows.filter((r) =>
+    (!customer || r.customer_id === customer) &&
+    (status === "all" || (status === "open" ? !r.decision : r.decision === status)));
+}
+
+function card(r) {
+  const ratio = Number(r.quantity) / Number(r.product_median_qty);
+  const canc = Number(r.cancelled_qty_30d) > 0
+    ? `<span class="warn">${num(r.cancelled_qty_30d)} after ${r.first_cancel_days} d</span>` : "none";
+  const el = document.createElement("article");
+  el.className = `card ${r.decision}`;
+  el.innerHTML = `
+    <div class="top"><span class="desc"></span><span class="row">#${r.row}</span></div>
+    <div class="big"><b>${num(r.quantity)}</b><small>units · ${num(ratio)}× product median (${num(r.product_median_qty, 1)})</small></div>
+    <dl>
+      <dt>Code / invoice</dt><dd>${r.stock_code} · ${r.invoice}</dd>
+      <dt>Price / revenue</dt><dd>£${num(r.price, 2)} · £${num(r.revenue, 2)}</dd>
+      <dt>Date</dt><dd>${r.date}</dd>
+      <dt>Customer</dt><dd><button class="cust">${r.customer_id || "?"}</button> · ${r.country}</dd>
+      <dt>z (MAD)</dt><dd>${r.z}</dd>
+      <dt>Cancelled ≤ 30 d</dt><dd>${canc}</dd>
+    </dl>
+    <div class="actions">
+      <button class="kb" aria-pressed="${r.decision === "keep"}">Keep</button>
+      <button class="xb" aria-pressed="${r.decision === "exclude"}">Exclude</button>
+    </div>
+    <input class="note" placeholder="Note (optional)" enterkeyhint="done">`;
+  el.querySelector(".desc").textContent = r.description;
+  const note = el.querySelector(".note"); note.value = r.note;
+  const decide = async (d) => {
+    const next = r.decision === d ? "" : d;  // tapping the active choice clears it
+    if (await save(r, next, note.value)) { toast(next ? `#${r.row} ${next}` : `#${r.row} open again`); render(); }
+  };
+  el.querySelector(".kb").onclick = () => decide("keep");
+  el.querySelector(".xb").onclick = () => decide("exclude");
+  note.onchange = async () => { if (r.decision && await save(r, r.decision, note.value)) toast("Note saved"); };
+  el.querySelector(".cust").onclick = () => { customer = r.customer_id; $("customer").value = customer; render(); };
+  return el;
+}
+
+function render() {
+  const k = rows.filter((r) => r.decision === "keep").length;
+  const x = rows.filter((r) => r.decision === "exclude").length;
+  $("bk").style.width = `${(100 * k) / rows.length}%`;
+  $("bx").style.width = `${(100 * x) / rows.length}%`;
+  $("counts").textContent = `${k} keep · ${x} exclude · ${rows.length - k - x} open of ${rows.length}`;
+  for (const b of $("status").children) b.setAttribute("aria-pressed", b.dataset.v === status);
+  const open = rows.filter((r) => r.customer_id === customer && !r.decision);
+  $("bulk").classList.toggle("on", !!customer && open.length > 0);
+  $("bulktext").textContent = `${open.length} open lines of customer ${customer}:`;
+  const list = visible();
+  const main = $("cards"); main.replaceChildren(...list.map(card));
+  if (!list.length) main.innerHTML = `<div class="empty">Nothing here.</div>`;
+}
+
+async function decideAll(d) {
+  const open = rows.filter((r) => r.customer_id === customer && !r.decision);
+  if (!confirm(`${d} all ${open.length} open lines of customer ${customer}?`)) return;
+  for (const r of open) if (!(await save(r, d, r.note))) break;
+  toast(`${open.length} lines: ${d}`); render();
+}
+
+$("status").onclick = (e) => { if (e.target.dataset.v) { status = e.target.dataset.v; render(); } };
+$("customer").onchange = (e) => { customer = e.target.value; render(); };
+$("allkeep").onclick = () => decideAll("keep");
+$("allexcl").onclick = () => decideAll("exclude");
+load();
+</script>
+</body>
+</html>

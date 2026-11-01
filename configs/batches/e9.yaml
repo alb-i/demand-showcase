@@ -1,0 +1,56 @@
+# E9: every tuning model on the test origins, both sets; run with
+#   scripts/run_batch.py configs/batches/e9.yaml --origins test --final
+# lgbm_total_q runs on the full set only: its forecasts do not depend on the set (trained on all
+# products, no set-dependent intervals; identical on the tuning origins), the focus run is cut
+# out of it by scripts/subset_run.py. Not here: the LightGBM tuning grid (lgbm_item_p12/p18/
+# l15/l63), the item-target diagnostics (--target item), the category level (E3c), trivial.
+runs:
+  - {config: configs/models/lgbm_total_q.yaml, set: full}
+  - {config: configs/models/naive.yaml, set: focus}
+  - {config: configs/models/naive.yaml, set: full}
+  - {config: configs/models/snaive.yaml, set: focus}
+  - {config: configs/models/snaive.yaml, set: full}
+  - {config: configs/models/ma4.yaml, set: focus}
+  - {config: configs/models/ma4.yaml, set: full}
+  - {config: configs/models/ma8.yaml, set: focus}
+  - {config: configs/models/ma8.yaml, set: full}
+  - {config: configs/models/ma13.yaml, set: focus}
+  - {config: configs/models/ma13.yaml, set: full}
+  - {config: configs/models/croston_a01.yaml, set: focus}
+  - {config: configs/models/croston_a01.yaml, set: full}
+  - {config: configs/models/croston_a02.yaml, set: focus}
+  - {config: configs/models/croston_a02.yaml, set: full}
+  - {config: configs/models/sba_a01.yaml, set: focus}
+  - {config: configs/models/sba_a01.yaml, set: full}
+  - {config: configs/models/sba_a02.yaml, set: focus}
+  - {config: configs/models/sba_a02.yaml, set: full}
+  - {config: configs/models/tsb_a01.yaml, set: focus}
+  - {config: configs/models/tsb_a01.yaml, set: full}
+  - {config: configs/models/tsb_a02.yaml, set: focus}
+  - {config: configs/models/tsb_a02.yaml, set: full}
+  - {config: configs/models/split_ma4_bulk0.yaml, set: focus}
+  - {config: configs/models/split_ma4_bulk0.yaml, set: full}
+  - {config: configs/models/split_ma4_bulkma52.yaml, set: focus}
+  - {config: configs/models/split_ma4_bulkma52.yaml, set: full}
+  - {config: configs/models/split_ma4_bulktsb.yaml, set: focus}
+  - {config: configs/models/split_ma4_bulktsb.yaml, set: full}
+  - {config: configs/models/split_tsb02_bulkma52.yaml, set: focus}
+  - {config: configs/models/split_tsb02_bulkma52.yaml, set: full}
+  - {config: configs/models/split_tsb02_bulktsb.yaml, set: focus}
+  - {config: configs/models/split_tsb02_bulktsb.yaml, set: full}
+  - {config: configs/models/split_ma4_bulkma52_poolcat.yaml, set: focus}
+  - {config: configs/models/split_ma4_bulkma52_poolcat.yaml, set: full}
+  - {config: configs/models/topdown_ma4_bulkma52.yaml, set: focus}
+  - {config: configs/models/topdown_ma4_bulkma52.yaml, set: full}
+  - {config: configs/models/topdown_ma13_bulkma52.yaml, set: focus}
+  - {config: configs/models/topdown_ma13_bulkma52.yaml, set: full}
+  - {config: configs/models/ets.yaml, set: focus}
+  - {config: configs/models/ets.yaml, set: full}
+  - {config: configs/models/arima.yaml, set: focus}
+  - {config: configs/models/arima.yaml, set: full}
+  - {config: configs/models/lgbm_item.yaml, set: focus}
+  - {config: configs/models/lgbm_item.yaml, set: full}
+  - {config: configs/models/lgbm_total.yaml, set: focus}
+  - {config: configs/models/lgbm_total.yaml, set: full}
+  - {config: configs/models/lgbm_total_p18.yaml, set: focus}
+  - {config: configs/models/lgbm_total_p18.yaml, set: full}

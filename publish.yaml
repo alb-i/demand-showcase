@@ -1,0 +1,39 @@
+# Publish manifest (scripts/publish.py): exactly these files go to the public repository
+# alb-i/demand-showcase (allowlist). Everything else stays private (CLAUDE.md, run folders,
+# data, publish-runids.yaml, ...).
+files:                      # tracked files (git ls-files)
+  - README.md
+  - LICENSE
+  - pyproject.toml
+  - environment.yml
+  - .env.example
+  - .gitignore
+  - .pre-commit-config.yaml
+  - publish.yaml
+  - configs/**
+  - src/**
+  - tests/**
+  - scripts/**
+  - reports/*.md
+  - reports/*.csv
+  - reports/experiments/*.md
+  - reports/figures/*.png
+  - reports/figures/*.pdf
+  - reports/report.tex
+  - reports/report.pdf
+  - reports/one-pager.tex
+  - reports/one-pager.pdf
+  - demo/**
+  - docs/**
+generated:                  # build outputs that must exist: python scripts/export_static.py
+  - demo/data/**
+  - demo/chart.umd.min.js
+  - demo/style.css
+exclude:
+  - "**/CLAUDE.md"
+  - publish-runids.yaml
+check:                      # scripts/check_public.py
+  allowed_dates:            # day-level dates that are content, not timestamps
+    - [2009-11-01, 2012-01-31]   # data period, including the weeks forecast after it
+    - [2000-01-01, 2000-01-01]   # placeholder date of the test fixtures
+  hosts: []                 # host names to look for besides this machine's

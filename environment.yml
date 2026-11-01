@@ -1,0 +1,33 @@
+# Python environment for demand-showcase and ml-workbench (Showcase 02).
+#   micromamba create -f environment.yml
+#   micromamba run -n demand-showcase pip install --no-deps -e . -e ../ml-workbench   # a clone of github.com/alb-i/ml-workbench
+name: demand-showcase
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  # data and models
+  - numpy
+  - pandas
+  - pyarrow
+  - openpyxl          # reads the Online Retail II xlsx (retail.io)
+  - pyyaml
+  - python-dotenv
+  - scipy
+  - statsforecast
+  - lightgbm
+  - matplotlib-base   # report figures
+  # workbench
+  - fastapi
+  - uvicorn
+  - python-multipart
+  - jinja2
+  - nvidia-ml-py
+  - pillow
+  # dev
+  - pytest
+  - httpx
+  - ruff
+  - pre-commit
+  - hatchling

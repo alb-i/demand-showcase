@@ -1,0 +1,44 @@
+# Cost model and policy grids of the inventory simulation. The data have prices but no
+# costs: every value here is an assumption, stated in the report and varied in the sensitivity.
+margin: 0.40            # gross margin m; unit cost c = (1 - m) p
+holding_rate: 0.25      # per year, share of c (capital, storage, handling)
+lead_time: 1            # L, weeks from order to arrival
+review_period: 1        # R, weeks between orders
+order_cost: 0.0         # K per order (only P-sS, not run)
+lost_sales: true        # unmet demand is lost (false: backorders)
+weeks_per_year: 52
+price_weeks: before     # price p = the product's median weekly median price over the weeks
+                        # with sales before the first simulated week (no look-ahead)
+# leftover stock of seasonal products at the end of the simulation, written down by share x c
+# (a separate scenario next to the base case without write-down)
+write_down:
+  share: 0.5
+  categories: [christmas, easter]   # configs/categories.yaml
+sensitivity:
+  margin: [0.25, 0.40, 0.60]
+  holding_rate: [0.15, 0.25, 0.40]
+  lead_time: [1, 2, 4]
+  write_down_share: [0.0, 0.5, 1.0]
+# policy grids, fixed before the test simulation
+policies:
+  naive:                # S = (L + R) x mean of the last 4 weeks x (1 + buffer)
+    window: 4
+    buffer: [0.0, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5]
+    # references of the operating points (buffer 0, and buffer 1.0 with ~89 % fill on
+    # tuning): P-quantile / P-normal matched to their tuning fill rate
+    reference_buffers: [0.0, 1.0]
+  normal:               # S = (L + R) mu + z_alpha sigma sqrt(L + R), MA(4), normal errors
+    window: 4
+    sigma_weeks: 52     # sigma = RMS of the one-step MA errors over the last 52 open weeks
+    alpha: [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.925, 0.95, 0.975, 0.99]
+  quantile:             # S = tau-quantile of the sample-path sum over L + R weeks (E7b paths)
+    source: lgbm-total-q-p1.8   # the selected model on the focus set (E9)
+    tau: [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.925, 0.95, 0.975, 0.99]
+    n_paths: 1000
+    min_pool: 100
+    seed: 0
+# simulated weeks
+simulation:
+  set: focus
+  tuning_from: 2011-03-28   # first week with a filled path pool (as E7)
+  test_from: 2011-06-06

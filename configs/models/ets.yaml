@@ -1,0 +1,5 @@
+# E3: ets per series on item demand + bulk part, own intervals
+name: stats
+experiment: E3
+model: ets
+bulk_weeks: 52

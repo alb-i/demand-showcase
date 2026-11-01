@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Decision · demand demo</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+  <header><span class="brand">Demand forecasting demo</span><nav id="nav"></nav>
+    <span class="note">static demo, precomputed data</span></header>
+  <main>
+    <div class="toolbar"><h1>Order list</h1>
+      <span class="muted">stock and open orders from the simulation of the chosen policy up to the week</span></div>
+    <form class="filters" id="pick" onsubmit="return false">
+      <label>Week <select id="week"></select></label>
+      <label>Policy <select id="policy">
+        <option value="quantile">P-quantile (τ)</option><option value="normal">P-normal (α)</option>
+        <option value="naive">P-naive (buffer)</option></select></label>
+      <label><span id="param-label">τ</span> <select id="value"></select></label>
+      <label>L <select id="L"></select></label>
+      <label>Margin <select id="margin"></select></label>
+      <a href="#" id="csv">Download CSV</a>
+    </form>
+    <p id="summary"></p>
+    <div class="scroll"><table class="runs" id="orders"></table></div>
+    <p class="muted">The static demo lists its <span id="n-products"></span> products; the workbench lists
+      all focus products.</p>
+  </main>
+  <script src="demo.js"></script>
+  <script src="data/meta.js"></script>
+  <script src="data/sim.js"></script>
+  <script>
+    nav('Decision');
+    const M = DEMO.meta, $ = id => document.getElementById(id);
+    $('n-products').textContent = M.products.length;
+    $('week').innerHTML = M.weeks.map((w, j) => `<option ${j === Math.floor(M.weeks.length / 2) ? 'selected' : ''}>${w}</option>`).join('');
+    $('L').innerHTML = M.lead_times.map(l => `<option>${l}</option>`).join('');
+    $('margin').innerHTML = [0.25, 0.3, 0.4, 0.5, 0.6].map(m => `<option value="${m}" ${m === M.costs.margin ? 'selected' : ''}>${Math.round(m * 100)} %</option>`).join('');
+    const op = M.operating_point['1'] || { naive: 1, normal: 0.9, quantile: 0.925 };
+    const chosen = { ...op };
+    function fillValues() {
+      const p = $('policy').value;
+      $('param-label').textContent = PARAM[p];
+      $('value').innerHTML = M.grids[p].map(v => `<option ${v === chosen[p] ? 'selected' : ''}>${v}</option>`).join('');
+    }
+    fillValues();
+    let rows = [];
+    async function update() {
+      const lead = +$('L').value, policy = $('policy').value, value = +$('value').value, margin = +$('margin').value;
+      chosen[policy] = value;
+      await load(`data/levels-L${lead}.js`);
+      const j = M.weeks.indexOf($('week').value);
+      rows = M.products.map(info => {
+        const c = info.id, lv = levels(c, policy, value, lead), s = DEMO.sim[c];
+        const sim = simulate(s.demand.slice(0, j + 1), lv.slice(0, j + 1), lead);
+        const onHand = sim.start[j];
+        let onOrder = 0;
+        for (let i = Math.max(0, j - lead + 1); i < j; i++) onOrder += sim.order[i];
+        const order = sim.order[j], unit = (1 - margin) * s.price;
+        return { stock_code: c, description: info.description, on_hand: onHand, on_order: onOrder,
+                 position: onHand + onOrder, order_up_to: lv[j], order, unit_cost: unit, order_value: order * unit };
+      }).sort((a, b) => b.order_value - a.order_value);
+      const n = rows.filter(r => r.order > 0).length, total = rows.reduce((t, r) => t + r.order_value, 0);
+      const arrives = j + lead < M.weeks.length ? M.weeks[j + lead] : 'after the data';
+      $('summary').innerHTML = `Week ${M.weeks[j]}: <b>${n}</b> orders, value at cost <b>${gbp(total)}</b>; they arrive in week ${arrives} (L = ${lead}).`
+        + (policy === 'quantile' ? ` Each order-up-to level is the ${value}-quantile of the demand over the next ${lead + 1} weeks, so it covers that demand with probability ${(value * 100).toFixed(1)} %.` : '');
+      let html = '<thead><tr>' + th('Stock code', 'stock_code', '') + th('Description', 'description', '') + th('On hand', 'on_hand')
+        + th('On order', 'on_order') + th('Position', 'position') + th('Order-up-to S', 'order_up_to') + th('Order', 'order')
+        + th('Unit cost (£)', 'unit_cost') + th('Order value (£)', 'order_value') + '</tr></thead><tbody>';
+      for (const r of rows) {
+        html += `<tr ${r.order === 0 ? 'class="muted"' : ''}><td><a href="forecast.html?p=${encodeURIComponent(r.stock_code)}">${r.stock_code}</a></td>`
+          + `<td>${r.description}</td><td class="num">${fmt1(r.on_hand)}</td><td class="num">${fmt1(r.on_order)}</td>`
+          + `<td class="num">${fmt1(r.position)}</td><td class="num">${fmt1(r.order_up_to)}</td><td class="num"><b>${fmt1(r.order)}</b></td>`
+          + `<td class="num">${r.unit_cost.toFixed(2)}</td><td class="num">${r.order_value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr>`;
+      }
+      $('orders').innerHTML = html + '</tbody>';
+    }
+    $('policy').addEventListener('change', () => { fillValues(); update().catch(fail); });
+    for (const id of ['week', 'value', 'L', 'margin']) $(id).addEventListener('change', () => update().catch(fail));
+    $('csv').addEventListener('click', ev => {
+      ev.preventDefault();
+      const cols = ['stock_code', 'description', 'on_hand', 'on_order', 'position', 'order_up_to', 'order', 'unit_cost', 'order_value'];
+      const cell = v => typeof v === 'number' ? (Number.isNaN(v) ? '' : String(Math.round(v * 100) / 100)) : `"${String(v).replace(/"/g, '""')}"`;
+      const csv = [cols.join(',')].concat(rows.filter(r => r.order > 0).map(r => cols.map(k => cell(r[k])).join(','))).join('\n') + '\n';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      a.download = `orders-${$('week').value}-${$('policy').value}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+    });
+    update().catch(fail);
+  </script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+# Pipeline check: mean and empirical quantiles of the last `window` known weeks.
+name: trivial
+window: 52

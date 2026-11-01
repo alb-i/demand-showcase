@@ -1,0 +1,64 @@
+# Cleaning of Online Retail II (src/retail/cleaning.py).
+# The data version is sha256(this file's resolved config + git commit)[:8].
+variant: main
+
+# R1: the sheet "Year 2009-2010" repeats 1-9 Dec 2010, an exact copy of the start of
+# "Year 2010-2011" (22 523 lines): drop the copy in the first sheet.
+overlap:
+  sheet: "Year 2009-2010"
+  from_date: "2010-12-01"
+
+# R2: lines identical in every column (same invoice, code, description, quantity, minute,
+# price, customer): keep = repeated basket additions count as demand; drop = keep one per group
+# (both variants are built, see configs/cleaning-dedup.yaml).
+duplicates: keep
+
+# R3 (transform): stock codes upper-cased, 85123a == 85123A; suffix letters stay.
+upper_case_codes: true
+
+# R4: products are codes of the form 5 digits + optional letters, plus `products_extra`
+# (real goods with other codes). `non_product` lists every other code (patterns with
+# fnmatch, matched after upper-casing). build_panel fails on any code in neither list.
+product_pattern: '^\d{5}[A-Z]*$'
+products_extra: ["DCGS*", "SP1002"]
+non_product:
+  - POST          # postage
+  - DOT           # dotcom postage
+  - C2            # carriage
+  - C3
+  - M             # manual
+  - ADJUST*       # adjustments
+  - D             # discount
+  - B             # adjust bad debt
+  - S             # samples
+  - AMAZONFEE
+  - BANK CHARGES
+  - CRUK          # commission
+  - GIFT*         # gift vouchers (gift_0001_*)
+  - TEST*
+  - PADS          # pads to match all cushions (price 0.001)
+
+# R5: non-cancellation lines with price <= 0 or quantity <= 0 (stock adjustments, damages,
+# "found", "check", ...): not demand.
+
+# R6: cancellations (invoice "C..."). A cancellation that matches a sale exactly (same
+# customer, stock code and quantity, at most `correction_days` later; every sale matched at
+# most once, the latest earlier one first) is an order correction: both lines leave demand.
+# Every other cancellation is a return: not subtracted from demand, counted in the panel
+# column `returned_units` in the week of the cancellation.
+cancellations:
+  correction_days: 7
+
+# R7: bulk orders. Candidates: log(quantity) > median + k * MAD of the product's log
+# quantities (sales after R1-R6); the top `review_top` go to reports/bulk_review.csv for a
+# review by hand. Only lines listed in `exclude` (invoice, stock_code) are removed.
+bulk:
+  k: 10
+  review_top: 50
+  exclude: []
+
+# Panel (src/retail/panel.py)
+panel:
+  # ISO weeks (Monday start). Weeks without any trading day are closed: missing, not zero.
+  # Data end on Friday 9 Dec 2011: the week of the last invoice is incomplete and dropped (R8).
+  drop_last_week: true

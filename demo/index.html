@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demand forecasting demo</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+  <header><span class="brand">Demand forecasting demo</span><nav id="nav"></nav>
+    <span class="note">static demo, precomputed data</span></header>
+  <main>
+    <div class="lead">
+      <h1>From a sales forecast to an order quantity</h1>
+      <p>Two years of transactions of a UK online giftware wholesaler (<i>Online Retail II</i>, UCI,
+        CC BY 4.0) as weekly demand. A global LightGBM model forecasts every product 8 weeks ahead
+        with quantiles; the order quantity is a quantile of the demand over lead time plus one week,
+        taken from forecast sample paths (<b>P-quantile</b>), not the forecast itself.</p>
+      <p id="headline" class="muted"></p>
+      <ul>
+        <li><a href="forecast.html">Forecast</a>: replay the forecasts of 2011 for a product, with
+          the 60, 80 and 95 % intervals.</li>
+        <li><a href="policy.html">Policy</a>: simulate the test weeks (June to November 2011) for
+          three order policies; change the service target, margin, holding rate and lead time.</li>
+        <li><a href="decision.html">Decision</a>: the order list of a week, as a CSV.</li>
+      </ul>
+      <p class="muted">This static version shows <span id="n-products"></span> representative products;
+        the totals of the Policy page cover all <span id="n-focus"></span> top-revenue (A) products.</p>
+    </div>
+    <h2>Products</h2>
+    <div class="scroll"><table class="runs" id="products"></table></div>
+  </main>
+  <script src="demo.js"></script>
+  <script src="data/meta.js"></script>
+  <script src="data/aggregates.js"></script>
+  <script>
+    nav('Overview');
+    try {
+      const M = DEMO.meta;
+      document.getElementById('n-products').textContent = M.products.length;
+      document.getElementById('n-focus').textContent = M.n_focus;
+      // headline: P-quantile vs P-naive at the operating point of L = 1 and the base costs
+      const op = M.operating_point['1'], A = DEMO.aggregates['1'], c = M.costs;
+      if (op && A) {
+        const t = {};
+        for (const p of POLICIES) t[p] = reprice(A[p][M.grids[p].indexOf(op[p])], c.margin, c.holding, 0, c.weeks_per_year);
+        const q = t.quantile, n = t.naive;
+        document.getElementById('headline').innerHTML =
+          `Test weeks, lead time 1 week, all ${M.n_focus} products: P-quantile (τ ${op.quantile}) serves `
+          + `${pct(q.fill_rate)} of the demand vs. ${pct(n.fill_rate)} for the shop-style rule P-naive `
+          + `(4-week mean + ${Math.round(op.naive * 100)} %), at a total cost of ${gbp(q.total_cost)} vs. ${gbp(n.total_cost)} `
+          + `(margin ${Math.round(c.margin * 100)} %, holding ${Math.round(c.holding * 100)} % a year).`;
+      }
+      let html = '<thead><tr>' + th('Stock code', 'stock_code', '') + th('Description', 'description', '')
+        + th('Segment', 'segment', '') + th('Category', 'category', '') + th('Revenue', 'revenue') + '<th></th></tr></thead><tbody>';
+      for (const p of M.products) {
+        html += `<tr><td><a href="forecast.html?p=${encodeURIComponent(p.id)}">${p.id}</a></td><td>${p.description}</td>`
+          + `<td>${p.segment}</td><td>${p.category}</td><td class="num">${gbp(p.revenue)}</td>`
+          + `<td><a href="policy.html?p=${encodeURIComponent(p.id)}">policy</a></td></tr>`;
+      }
+      document.getElementById('products').innerHTML = html + '</tbody>';
+    } catch (e) { fail(e); }
+  </script>
+</body>
+</html>

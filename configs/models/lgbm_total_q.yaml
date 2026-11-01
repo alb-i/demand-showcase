@@ -1,0 +1,11 @@
+# E5: LightGBM quantile models on total demand: mean from the Tweedie
+# model (power 1.8), one pinball-loss model per quantile level, sorted per row; no calibration
+name: lgbm
+experiment: E5
+target: total
+quantile_models: true
+rounds: 400
+scale_weeks: 13
+min_pool: 100
+tag: "-p1.8"
+params: {tweedie_variance_power: 1.8, num_leaves: 31, learning_rate: 0.05, min_data_in_leaf: 50}
