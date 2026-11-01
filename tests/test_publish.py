@@ -236,3 +236,23 @@ def test_publish_end_to_end(tmp_path, pub):
     (tmp_path / "other" / "keep.txt").write_text("x")
     with pytest.raises(SystemExit):  # not a git working tree
         pub.publish(src, tmp_path / "other", None, allow_dirty=True)
+
+
+def test_publish_refuses_files_the_target_would_ignore(tmp_path, pub):
+    src, tgt = tmp_path / "src", tmp_path / "public"
+    (src / "demo" / "data").mkdir(parents=True)
+    (src / "demo" / "data" / "meta.js").write_text("x")
+    (src / ".gitignore").write_text("data/\n")  # ignores demo/data too
+    (src / "publish.yaml").write_text(
+        yaml.safe_dump({"files": [".gitignore", "publish.yaml"], "generated": ["demo/data/**"]})
+    )
+    subprocess.run(["git", "init", "-q"], cwd=src, check=True)
+    subprocess.run(["git", "add", ".gitignore", "publish.yaml"], cwd=src, check=True)
+    tgt.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=tgt, check=True)
+    assert pub.ignored_files(tgt, ["a.txt"]) == []
+    with pytest.raises(SystemExit, match="ignored"):
+        pub.publish(src, tgt, None, allow_dirty=True)
+    (src / ".gitignore").write_text("/data/\n")
+    assert pub.publish(src, tgt, None, allow_dirty=True) == [".gitignore", "demo/data/meta.js",
+                                                             "publish.yaml"]  # fmt: skip

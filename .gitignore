@@ -1,6 +1,6 @@
 .env
-runs/
-data/
+/runs/
+/data/
 __pycache__/
 *.py[cod]
 .venv/

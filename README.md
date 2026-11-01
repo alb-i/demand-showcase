@@ -7,7 +7,7 @@ at 16–22 % lower cost.
 
 <p align="center"><img src="docs/demand-demo.gif" width="900" alt="Static demo: replaying the weekly forecast of a Christmas product, moving the service target of the quantile policy along the stock-versus-fill-rate frontier, changing the lead time, and the weekly order list"></p>
 
-*The static demo ([demo/](demo/)): replay the forecasts, move the service target and the lead
+*The [static demo](https://alb-i.github.io/demand-showcase/demo/): replay the forecasts, move the service target and the lead
 time, and see stock, fill rate and cost change.*
 
 The technical report ([reports/report.pdf](reports/report.pdf), source
@@ -15,8 +15,9 @@ The technical report ([reports/report.pdf](reports/report.pdf), source
 the backtest, the newsvendor derivation, the simulation and the limitations. The browser tool
 for runs, leaderboard, forecasts and the policy what-if is
 [ml-workbench](https://github.com/alb-i/ml-workbench). A static demo (Forecast, Policy and
-Decision pages for 30 products) is in [demo/](demo/): build its data with
-`scripts/export_static.py`, then open `demo/index.html`.
+Decision pages for 30 products) runs at
+[alb-i.github.io/demand-showcase/demo](https://alb-i.github.io/demand-showcase/demo/); its
+source is in [demo/](demo/) (data: `scripts/export_static.py`, then open `demo/index.html`).
 
 <p align="center"><img src="reports/figures/fan_chart.png" width="900" alt="Weekly demand of two products with the 8-week forecast made in early September 2011: median and 80 % and 95 % intervals"></p>
 

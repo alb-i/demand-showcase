@@ -183,6 +183,15 @@ def transform(rel: str, data: bytes, ctx: dict) -> bytes:
     return text.encode("utf-8")
 
 
+def ignored_files(target: Path, files) -> list[str]:
+    """Published files that git would not add in the target (ignored by its .gitignore)."""
+    if not (target / ".git").exists():
+        return []
+    out = subprocess.run(["git", "check-ignore", "--no-index", "--stdin"], cwd=target, text=True,
+                         input="\n".join(files), capture_output=True)  # fmt: skip
+    return out.stdout.split()
+
+
 def clear_target(target: Path, source: Path) -> None:
     """Delete everything in target except .git; refuses a target that is not a git working tree
     (or empty), or that lies inside the source."""
@@ -216,6 +225,9 @@ def publish(source: Path, target: Path, runs_dir: Path | None, allow_dirty=False
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(transform(rel, (source / rel).read_bytes(), ctx))
         shutil.copymode(source / rel, out)
+    ignored = ignored_files(target, files)
+    if ignored:
+        raise SystemExit(f"published files ignored by the target's .gitignore: {ignored[:5]}")
     if mapping:
         map_path.write_text("# run id -> public id (scripts/publish.py); private, not published\n"
                             + yaml.safe_dump(mapping, sort_keys=True))  # fmt: skip
